@@ -4,6 +4,7 @@ pipeline {
         label 'master'
     }
 
+
     environment {
 
         AWS_REGION = 'eu-north-1'
@@ -15,6 +16,8 @@ pipeline {
         EKS_CLUSTER = 'devopshub-prod-cluster'
 
         NAMESPACE = 'devopshub'
+
+        KUBECONFIG = '/var/lib/jenkins/.kube/config'
     }
 
 
@@ -40,10 +43,13 @@ pipeline {
                 dir('backend') {
 
                     sh '''
+
                     mvn clean package -DskipTests
+
                     '''
 
                 }
+
             }
         }
 
@@ -75,7 +81,9 @@ pipeline {
                     '''
 
                 }
+
             }
+
         }
 
 
@@ -96,13 +104,16 @@ pipeline {
                     '''
 
                 }
+
             }
+
         }
 
 
 
 
-        stage('Push Backend Image') {
+
+        stage('Push Image To ECR') {
 
             steps {
 
@@ -111,19 +122,20 @@ pipeline {
                 docker push \
                 ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${IMAGE_REPO}:${IMAGE_TAG}
 
-
                 '''
 
             }
+
         }
 
 
 
 
 
-        stage('Connect EKS') {
+        stage('Connect EKS Cluster') {
 
             steps {
+
 
                 withCredentials([
                     [$class: 'AmazonWebServicesCredentialsBinding',
@@ -133,17 +145,25 @@ pipeline {
 
                     sh '''
 
+                    mkdir -p /var/lib/jenkins/.kube
+
+
                     aws eks update-kubeconfig \
                     --region ${AWS_REGION} \
-                    --name ${EKS_CLUSTER}
+                    --name ${EKS_CLUSTER} \
+                    --kubeconfig ${KUBECONFIG}
 
 
-                    kubectl get nodes
+
+                    kubectl get nodes \
+                    --kubeconfig ${KUBECONFIG}
+
 
 
                     '''
 
                 }
+
 
             }
 
@@ -153,7 +173,7 @@ pipeline {
 
 
 
-        stage('Deploy Kubernetes Manifests') {
+        stage('Deploy Kubernetes') {
 
             steps {
 
@@ -165,54 +185,86 @@ pipeline {
 
                 echo "Creating Namespace"
 
-                kubectl apply -f namespace.yaml
+                kubectl apply \
+                --kubeconfig ${KUBECONFIG} \
+                -f namespace.yaml \
+                --validate=false
 
 
 
-                echo "Applying ConfigMap"
-
-                kubectl apply -f configmap.yaml
-
-
-
-                echo "Applying Secrets"
-
-                kubectl apply -f secret.yaml
+                kubectl apply \
+                --kubeconfig ${KUBECONFIG} \
+                -f configmap.yaml \
+                --validate=false
 
 
 
-                echo "Deploying MongoDB"
-
-                kubectl apply -f mongodb-deployment.yaml
-
-                kubectl apply -f mongodb-service.yaml
-
-
-
-                echo "Deploying Backend"
-
-                kubectl apply -f backend-deployment.yaml
-
-                kubectl apply -f backend-service.yaml
+                kubectl apply \
+                --kubeconfig ${KUBECONFIG} \
+                -f secret.yaml \
+                --validate=false
 
 
 
-                echo "Deploying Frontend"
 
-                kubectl apply -f frontend-deployment.yaml
-
-                kubectl apply -f frontend-service.yaml
+                echo "Deploy MongoDB"
 
 
+                kubectl apply \
+                --kubeconfig ${KUBECONFIG} \
+                -f mongodb-deployment.yaml \
+                --validate=false
 
-                echo "Checking Pods"
+
+                kubectl apply \
+                --kubeconfig ${KUBECONFIG} \
+                -f mongodb-service.yaml \
+                --validate=false
 
 
-                kubectl get pods -n ${NAMESPACE}
+
+
+                echo "Deploy Backend"
+
+
+                kubectl apply \
+                --kubeconfig ${KUBECONFIG} \
+                -f backend-deployment.yaml \
+                --validate=false
+
+
+                kubectl apply \
+                --kubeconfig ${KUBECONFIG} \
+                -f backend-service.yaml \
+                --validate=false
+
+
+
+
+                echo "Deploy Frontend"
+
+
+                kubectl apply \
+                --kubeconfig ${KUBECONFIG} \
+                -f frontend-deployment.yaml \
+                --validate=false
+
+
+                kubectl apply \
+                --kubeconfig ${KUBECONFIG} \
+                -f frontend-service.yaml \
+                --validate=false
+
+
+
+
+                kubectl get pods \
+                -n ${NAMESPACE} \
+                --kubeconfig ${KUBECONFIG}
+
 
 
                 '''
-
 
             }
 
@@ -220,21 +272,28 @@ pipeline {
 
 
 
+
+
         stage('Update Backend Image') {
+
 
             steps {
 
 
                 sh '''
 
+
                 kubectl set image deployment/backend \
                 backend=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${IMAGE_REPO}:${IMAGE_TAG} \
-                -n ${NAMESPACE}
+                -n ${NAMESPACE} \
+                --kubeconfig ${KUBECONFIG}
 
 
 
                 kubectl rollout status deployment/backend \
-                -n ${NAMESPACE}
+                -n ${NAMESPACE} \
+                --kubeconfig ${KUBECONFIG}
+
 
 
                 '''
@@ -260,10 +319,12 @@ pipeline {
 
         failure {
 
-            echo '❌ Deployment Failed'
+            echo '❌ DevOpsHub Deployment Failed'
 
         }
 
+
     }
+
 
 }
