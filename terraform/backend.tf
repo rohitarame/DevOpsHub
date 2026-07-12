@@ -5,7 +5,6 @@ terraform {
     bucket         = "devopshub-terraform-state1"
     key            = "prod/terraform.tfstate"
     region         = "eu-west-1"
-    dynamodb_table = "terraform-locks"
     encrypt        = true
   }
 }
