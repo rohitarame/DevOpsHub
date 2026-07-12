@@ -1,10 +1,10 @@
 # CloudFront distribution for the static frontend.
 resource "aws_cloudfront_distribution" "frontend" {
-  
+
   depends_on = [
     aws_acm_certificate_validation.frontend
   ]
-  
+
   enabled             = true
   is_ipv6_enabled     = true
   default_root_object = "index.html"
