@@ -1,0 +1,152 @@
+pipeline {
+
+    agent {
+        label 'master'
+    }
+
+
+    environment {
+
+        AWS_REGION = "eu-north-1"
+
+        ECR_REPOSITORY = "138035228373.dkr.ecr.eu-north-1.amazonaws.com/devopshub/frontend"
+
+        IMAGE_TAG = "${BUILD_NUMBER}"
+
+    }
+
+
+    stages {
+
+
+        stage('Checkout Code') {
+
+            steps {
+
+                echo "Checking out frontend code"
+
+                git branch: 'main',
+                    url: 'https://github.com/rohitarame/DevOpsHub.git'
+
+            }
+
+        }
+
+
+
+        stage('AWS Authentication') {
+
+            steps {
+
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding',
+                     credentialsId: 'aws-credentials']
+                ]) {
+
+                    sh '''
+
+                    echo "Checking AWS Account"
+
+                    aws sts get-caller-identity
+
+
+                    echo "Login into ECR"
+
+
+                    aws ecr get-login-password \
+                    --region ${AWS_REGION} | \
+                    docker login \
+                    --username AWS \
+                    --password-stdin ${ECR_REPOSITORY}
+
+
+                    '''
+
+                }
+
+            }
+
+        }
+
+
+
+        stage('Build Frontend Docker Image') {
+
+            steps {
+
+                sh '''
+
+                echo "Building frontend image"
+
+
+                cd frontend
+
+
+                docker build \
+                -t ${ECR_REPOSITORY}:${IMAGE_TAG} .
+
+
+                '''
+
+            }
+
+        }
+
+
+
+        stage('Push Frontend Image To ECR') {
+
+            steps {
+
+                sh '''
+
+                echo "Pushing image to ECR"
+
+
+                docker push \
+                ${ECR_REPOSITORY}:${IMAGE_TAG}
+
+
+                '''
+
+            }
+
+        }
+
+
+
+        stage('Deployment Completed') {
+
+            steps {
+
+                echo "Frontend image deployed successfully"
+
+            }
+
+        }
+
+
+    }
+
+
+
+    post {
+
+
+        success {
+
+            echo "✅ Frontend Jenkins Pipeline Completed Successfully"
+
+        }
+
+
+        failure {
+
+            echo "❌ Frontend Jenkins Pipeline Failed"
+
+        }
+
+
+    }
+
+}
