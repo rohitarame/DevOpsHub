@@ -94,3 +94,28 @@ post {
 }
 
 }
+stage('Deploy To EKS') {
+    steps {
+        withCredentials([
+            [$class: 'AmazonWebServicesCredentialsBinding',
+            credentialsId: 'aws-credentials']
+        ]) {
+            sh '''
+            aws eks update-kubeconfig --region eu-north-1 --name devopshub-prod-cluster
+
+            kubectl apply -f k8s/namespace.yaml
+            kubectl apply -f k8s/configmap.yaml
+            kubectl apply -f k8s/secret.yaml
+            kubectl apply -f k8s/mongodb-deployment.yaml
+            kubectl apply -f k8s/mongodb-service.yaml
+            kubectl apply -f k8s/backend-deployment.yaml
+            kubectl apply -f k8s/backend-service.yaml
+            kubectl apply -f k8s/frontend-deployment.yaml
+            kubectl apply -f k8s/frontend-service.yaml
+
+            kubectl rollout status deployment/backend -n devopshub
+            kubectl rollout status deployment/frontend -n devopshub
+            '''
+        }
+    }
+}
