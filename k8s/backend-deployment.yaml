@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: devopshub-backend:latest
+          image: 138035228373.dkr.ecr.eu-north-1.amazonaws.com/devopshub/backend:2
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
