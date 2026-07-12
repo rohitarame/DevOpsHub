@@ -1,270 +1,163 @@
 pipeline {
 
-    agent {
-        label 'master'
-    }
+```
+agent {
+    label 'master'
+}
 
-    options {
-        buildDiscarder(logRotator(numToKeepStr: '10'))
-        skipDefaultCheckout(true)
-        disableConcurrentBuilds()
-    }
+options {
+    buildDiscarder(logRotator(numToKeepStr: '10'))
+    skipDefaultCheckout(true)
+    disableConcurrentBuilds()
+}
 
+environment {
 
-    environment {
+    AWS_REGION = 'eu-north-1'
+    TF_IN_AUTOMATION = 'true'
+    TF_INPUT = '0'
 
-        AWS_REGION = 'eu-north-1'
-        TF_IN_AUTOMATION = 'true'
-        TF_INPUT = '0'
-
-    }
-
-
-    stages {
+}
 
 
-        stage('Checkout Code') {
+stages {
 
-            steps {
 
-                checkout scm
+    stage('Checkout Code') {
 
-            }
+        steps {
+
+            checkout scm
 
         }
 
-
-
-        stage('AWS Authentication Check') {
-
-            steps {
-
-
-                withCredentials([
-                    [$class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'aws-credentials']
-                ]) {
-
-
-                    sh '''
-
-                    echo "Checking AWS Account"
-
-                    aws sts get-caller-identity
-
-                    '''
-
-
-                }
-
-            }
-
-        }
+    }
 
 
 
+    stage('AWS Authentication Check') {
 
-        stage('Terraform Version Check') {
+        steps {
 
-            steps {
+            withCredentials([
+                [$class: 'AmazonWebServicesCredentialsBinding',
+                credentialsId: 'aws-credentials']
+            ]) {
 
                 sh '''
-
-                terraform version
-
-                aws --version
-
+                echo "Checking AWS Account"
+                aws sts get-caller-identity
                 '''
 
             }
 
         }
 
+    }
 
 
 
+    stage('Terraform Version Check') {
 
-        stage('Terraform Init') {
+        steps {
 
-            steps {
-
-
-                withCredentials([
-                    [$class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'aws-credentials']
-                ]) {
-
-
-                    sh '''
-
-                   terraform -chdir=terraform init -input=false -reconfigure
-
-                    '''
-
-
-                }
-
-
-            }
+            sh '''
+            terraform version
+            aws --version
+            '''
 
         }
 
+    }
 
 
 
+    stage('Terraform Init') {
 
-        stage('Terraform Format Check') {
+        steps {
 
-            steps {
-
+            withCredentials([
+                [$class: 'AmazonWebServicesCredentialsBinding',
+                credentialsId: 'aws-credentials']
+            ]) {
 
                 sh '''
-
-                terraform -chdir=terraform fmt -check
-
+                terraform -chdir=terraform init -input=false -reconfigure
                 '''
 
-
             }
 
         }
 
+    }
 
 
 
+    stage('Terraform Format Check') {
 
-        stage('Terraform Validate') {
+        steps {
 
-            steps {
+            sh '''
+            terraform -chdir=terraform fmt -check
+            '''
 
+        }
+
+    }
+
+
+
+    stage('Terraform Validate') {
+
+        steps {
+
+            sh '''
+            terraform -chdir=terraform validate
+            '''
+
+        }
+
+    }
+
+
+
+    stage('Terraform Plan') {
+
+        steps {
+
+            withCredentials([
+                [$class: 'AmazonWebServicesCredentialsBinding',
+                credentialsId: 'aws-credentials']
+            ]) {
 
                 sh '''
-
-                terraform -chdir=terraform validate
-
+                terraform -chdir=terraform plan \
+                -out=tfplan \
+                -input=false
                 '''
 
-
             }
 
         }
 
+    }
 
 
 
+    stage('Terraform Apply') {
 
-        stage('Terraform Plan') {
+        steps {
 
-            steps {
 
-
-                withCredentials([
-                    [$class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'aws-credentials']
-                ]) {
-
-
-                    sh '''
-
-                    terraform -chdir=terraform plan \
-                    -out=tfplan \
-                    -input=false
-
-                    '''
-
-
-                }
-
-
-            }
-
-        }
-
-
-
-
-
-        stage('Terraform Approval') {
-
-
-            when {
-
-                branch 'main'
-
-            }
-
-
-            steps {
-
-
-                input message: 'Approve Terraform Deployment?'
-
-
-            }
-
-
-        }
-
-
-
-
-
-
-        stage('Terraform Apply') {
-
-
-            when {
-
-                branch 'main'
-
-            }
-
-
-            steps {
-
-
-
-                withCredentials([
-                    [$class: 'AmazonWebServicesCredentialsBinding',
-                    credentialsId: 'aws-credentials']
-                ]) {
-
-
-
-                    sh '''
-
-                    terraform -chdir=terraform apply \
-                    -auto-approve tfplan
-
-                    '''
-
-
-
-                }
-
-
-
-            }
-
-
-        }
-
-
-
-
-
-
-
-        stage('Terraform Output') {
-
-
-            steps {
+            withCredentials([
+                [$class: 'AmazonWebServicesCredentialsBinding',
+                credentialsId: 'aws-credentials']
+            ]) {
 
 
                 sh '''
-
-                terraform -chdir=terraform output || true
-
+                terraform -chdir=terraform apply \
+                -auto-approve tfplan
                 '''
 
 
@@ -273,40 +166,52 @@ pipeline {
 
         }
 
-
     }
 
 
 
+    stage('Terraform Output') {
 
+        steps {
 
-    post {
-
-
-        success {
-
-            echo '✅ Terraform Deployment Completed Successfully'
-
-        }
-
-
-
-        failure {
-
-            echo '❌ Terraform Deployment Failed'
+            sh '''
+            terraform -chdir=terraform output
+            '''
 
         }
-
-
-
-        always {
-
-            echo 'Pipeline Finished'
-
-        }
-
 
     }
 
+
+}
+
+
+
+post {
+
+
+    success {
+
+        echo '✅ Terraform Deployment Completed Successfully'
+
+    }
+
+
+    failure {
+
+        echo '❌ Terraform Deployment Failed'
+
+    }
+
+
+    always {
+
+        echo 'Pipeline Finished'
+
+    }
+
+
+}
+```
 
 }
