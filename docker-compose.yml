@@ -1,0 +1,25 @@
+version: '3.9'
+services:
+  mongo:
+    image: mongo:7
+    container_name: devopshub-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: devopshub-backend
+    environment:
+      MONGODB_URI: mongodb+srv://cloudblitz:redhat123@cloudblitz-cluster.0xef32k.mongodb.net/cb_auth?retryWrites=true&w=majority&appName=cdec-dev
+      JWT_SECRET: change-me-in-production
+    ports:
+      - "8081:8080"
+    depends_on:
+      - mongo
+
+volumes:
+  mongo-data:

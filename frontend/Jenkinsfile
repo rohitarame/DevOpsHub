@@ -1,0 +1,46 @@
+pipeline {
+    agent {
+        label 'master'
+    }
+
+    options {
+        timestamps()
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                dir('frontend') {
+                    sh 'npm install'
+                }
+            }
+        }
+
+        stage('Build') {
+            steps {
+                dir('frontend') {
+                    sh 'npm run build'
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Frontend build succeeded.'
+        }
+        failure {
+            echo 'Frontend build failed.'
+        }
+        always {
+            cleanWs()
+        }
+    }
+}

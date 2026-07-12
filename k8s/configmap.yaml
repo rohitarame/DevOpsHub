@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: devopshub-config
+  namespace: devopshub
+data:
+  APP_PORT: "8080"
+  MONGODB_URI: "mongodb://mongodb:27017/devopshub"
+  SPRING_PROFILES_ACTIVE: "prod"
