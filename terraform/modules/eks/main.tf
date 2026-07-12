@@ -35,8 +35,8 @@ module "eks" {
     main = {
       name           = "${var.project_name}-${var.environment}-ng"
       instance_types = var.node_group_instance_types
-      min_size       = 1
-      max_size       = 3
+      min_size       = 2
+      max_size       = 5
       desired_size   = var.node_group_desired_capacity
       subnet_ids     = var.private_subnet_ids
     }
