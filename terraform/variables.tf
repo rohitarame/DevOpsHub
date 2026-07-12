@@ -1,4 +1,5 @@
 # Input variables for the Terraform deployment.
+
 variable "region" {
   description = "AWS region for the deployment"
   type        = string
@@ -44,7 +45,7 @@ variable "cluster_version" {
 variable "node_group_instance_types" {
   description = "EC2 instance types for the managed node group"
   type        = list(string)
-  default     = ["t2.micro"]
+  default     = ["t3.micro"]
 }
 
 variable "node_group_desired_capacity" {
@@ -54,13 +55,13 @@ variable "node_group_desired_capacity" {
 }
 
 variable "domain_name" {
-  description = "Optional custom domain for the frontend"
+  description = "Custom domain for frontend"
   type        = string
-  default     = ""
+  default     = "thedevopslab.online"
 }
 
 variable "route53_zone_id" {
-  description = "Optional existing Route53 hosted zone ID to reuse for the custom domain"
+  description = "Existing Route53 Hosted Zone ID"
   type        = string
-  default     = ""
+  default     = "Z070903329VIS1J7CTQ7T"
 }
