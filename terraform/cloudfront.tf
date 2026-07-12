@@ -39,7 +39,7 @@ resource "aws_cloudfront_distribution" "frontend" {
   dynamic "viewer_certificate" {
     for_each = var.domain_name != "" ? [1] : []
     content {
-      acm_certificate_arn      = aws_acm_certificate_validation.frontend[0].certificate_arn
+      acm_certificate_arn      = aws_acm_certificate.frontend[0].arn
       ssl_support_method       = "sni-only"
       minimum_protocol_version = "TLSv1.2_2021"
     }
