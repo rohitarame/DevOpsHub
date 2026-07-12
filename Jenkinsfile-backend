@@ -1,115 +1,270 @@
 pipeline {
 
-agent {
-    label 'master'
-}
-
-environment {
-    AWS_REGION = 'eu-north-1'
-    AWS_ACCOUNT_ID = '138035228373'
-    IMAGE_REPO = 'devopshub/backend'
-    IMAGE_TAG = "${BUILD_NUMBER}"
-}
-
-stages {
-
-    stage('Checkout Code') {
-        steps {
-            git branch: 'main',
-            url: 'https://github.com/rohitarame/DevOpsHub.git'
-        }
+    agent {
+        label 'master'
     }
 
-    stage('Build Backend Jar') {
-        steps {
-            dir('backend') {
-                sh 'chmod +x mvnw || true'
-                sh 'mvn clean package -DskipTests'
+    environment {
+
+        AWS_REGION = 'eu-north-1'
+        AWS_ACCOUNT_ID = '138035228373'
+
+        IMAGE_REPO = 'devopshub/backend'
+        IMAGE_TAG = "${BUILD_NUMBER}"
+
+        EKS_CLUSTER = 'devopshub-prod-cluster'
+
+        NAMESPACE = 'devopshub'
+    }
+
+
+    stages {
+
+
+        stage('Checkout Code') {
+
+            steps {
+
+                git branch: 'main',
+                url: 'https://github.com/rohitarame/DevOpsHub.git'
+
             }
         }
-    }
 
-    stage('AWS Authentication') {
-        steps {
-            withCredentials([
-                [$class: 'AmazonWebServicesCredentialsBinding',
-                credentialsId: 'aws-credentials']
-            ]) {
+
+
+        stage('Build Backend') {
+
+            steps {
+
+                dir('backend') {
+
+                    sh '''
+                    chmod +x mvnw || true
+                    ./mvnw clean package -DskipTests
+                    '''
+
+                }
+            }
+        }
+
+
+
+        stage('AWS Login & ECR') {
+
+            steps {
+
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'aws-credentials']
+                ]) {
+
+
+                    sh '''
+
+                    aws sts get-caller-identity
+
+
+                    aws ecr get-login-password \
+                    --region ${AWS_REGION} | \
+                    docker login \
+                    --username AWS \
+                    --password-stdin \
+                    ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+
+
+                    '''
+
+                }
+            }
+        }
+
+
+
+
+        stage('Docker Build') {
+
+            steps {
+
+                dir('backend') {
+
+                    sh '''
+
+                    docker build \
+                    -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${IMAGE_REPO}:${IMAGE_TAG} .
+
+
+                    '''
+
+                }
+            }
+        }
+
+
+
+
+        stage('Push Backend Image') {
+
+            steps {
+
                 sh '''
-                aws sts get-caller-identity
 
-                aws ecr get-login-password --region ${AWS_REGION} | \
-                docker login --username AWS --password-stdin \
-                ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com
+                docker push \
+                ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${IMAGE_REPO}:${IMAGE_TAG}
+
+
                 '''
+
             }
         }
-    }
 
-    stage('Build Docker Image') {
-        steps {
-            dir('backend') {
+
+
+
+
+        stage('Connect EKS') {
+
+            steps {
+
+                withCredentials([
+                    [$class: 'AmazonWebServicesCredentialsBinding',
+                    credentialsId: 'aws-credentials']
+                ]) {
+
+
+                    sh '''
+
+                    aws eks update-kubeconfig \
+                    --region ${AWS_REGION} \
+                    --name ${EKS_CLUSTER}
+
+
+                    kubectl get nodes
+
+
+                    '''
+
+                }
+
+            }
+
+        }
+
+
+
+
+
+        stage('Deploy Kubernetes Manifests') {
+
+            steps {
+
+
                 sh '''
-                docker build -t ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${IMAGE_REPO}:${IMAGE_TAG} .
+
+                cd k8s
+
+
+                echo "Creating Namespace"
+
+                kubectl apply -f namespace.yaml
+
+
+
+                echo "Applying ConfigMap"
+
+                kubectl apply -f configmap.yaml
+
+
+
+                echo "Applying Secrets"
+
+                kubectl apply -f secret.yaml
+
+
+
+                echo "Deploying MongoDB"
+
+                kubectl apply -f mongodb-deployment.yaml
+
+                kubectl apply -f mongodb-service.yaml
+
+
+
+                echo "Deploying Backend"
+
+                kubectl apply -f backend-deployment.yaml
+
+                kubectl apply -f backend-service.yaml
+
+
+
+                echo "Deploying Frontend"
+
+                kubectl apply -f frontend-deployment.yaml
+
+                kubectl apply -f frontend-service.yaml
+
+
+
+                echo "Checking Pods"
+
+
+                kubectl get pods -n ${NAMESPACE}
+
+
                 '''
+
+
             }
-        }
-    }
 
-    stage('Push Docker Image') {
-        steps {
-            sh '''
-            docker push ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${IMAGE_REPO}:${IMAGE_TAG}
-            '''
         }
-    }
 
-    stage('Deploy To EKS') {
-        steps {
-            withCredentials([
-                [$class: 'AmazonWebServicesCredentialsBinding',
-                credentialsId: 'aws-credentials']
-            ]) {
+
+
+        stage('Update Backend Image') {
+
+            steps {
+
+
                 sh '''
-                aws eks update-kubeconfig \
-                --region ${AWS_REGION} \
-                --name devopshub-prod-cluster
 
                 kubectl set image deployment/backend \
                 backend=${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${IMAGE_REPO}:${IMAGE_TAG} \
-                -n devopshub || true
+                -n ${NAMESPACE}
+
+
+
+                kubectl rollout status deployment/backend \
+                -n ${NAMESPACE}
+
+
                 '''
+
             }
+
         }
-    }
-}
 
-post {
-    success {
-        echo '✅ Backend Jenkins Pipeline Completed Successfully'
-    }
-    failure {
-        echo '❌ Backend Jenkins Pipeline Failed'
-    }
-}
-
-}
- 
- stage('Deploy To EKS') {
-
-    steps {
-
-        echo "Deploying application to EKS"
-
-        sh '''
-        aws eks update-kubeconfig \
-        --region eu-north-1 \
-        --name devopshub-cluster
-
-        kubectl get nodes
-
-        kubectl apply -f k8s/
-        '''
 
     }
+
+
+
+    post {
+
+
+        success {
+
+            echo '✅ Complete DevOpsHub Deployment Completed Successfully'
+
+        }
+
+
+        failure {
+
+            echo '❌ Deployment Failed'
+
+        }
+
+    }
+
 }
