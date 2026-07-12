@@ -1,7 +1,11 @@
 # Optional Route53 zone, ACM certificate, and records for a custom domain.
 resource "aws_route53_zone" "primary" {
   count = var.domain_name != "" && var.route53_zone_id == "" ? 1 : 0
-  name  = var.domain_name
+  name  = var.domain_name 
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 data "aws_route53_zone" "existing" {
