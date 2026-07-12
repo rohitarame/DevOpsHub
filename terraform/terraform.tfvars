@@ -9,3 +9,4 @@ node_group_instance_types   = ["t3.medium"]
 node_group_desired_capacity = 2
 domain_name                 = ""
 route53_zone_id             = ""
+domain_name                 = "thedevopslab.online"
