@@ -48,3 +48,11 @@ output "route53_zone_id" {
   description = "Route53 hosted zone ID used for the custom domain"
   value       = var.domain_name != "" ? local.route53_zone_id : null
 }
+
+output "backend_ecr_repository_url" {
+  value = aws_ecr_repository.backend.repository_url
+}
+
+output "frontend_ecr_repository_url" {
+  value = aws_ecr_repository.frontend.repository_url
+}
