@@ -7,7 +7,7 @@ const HealthPage: React.FC = () => {
   useEffect(() => {
     const checkHealth = async () => {
       try {
-        const response = await fetch(`${import.meta.env.VITE_API_URL ?? ''}/health`);
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? ''}/health`);
         if (response.ok) {
           setStatus('ok');
           setMessage('All services are healthy.');
