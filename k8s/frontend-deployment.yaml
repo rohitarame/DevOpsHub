@@ -23,7 +23,7 @@ spec:
             - containerPort: 3000
           env:
             - name: NEXT_PUBLIC_API_URL
-              value: "http://backend:8080"
+              value: "https://api.thedevopslab.online"
           resources:
             requests:
               cpu: 250m
